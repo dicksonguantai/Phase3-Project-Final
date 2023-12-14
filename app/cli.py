@@ -2,6 +2,8 @@ import click
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from main import Base, MP, Bill, Vote
+from sqlalchemy.orm import joinedload
+from collections import Counter
 
 # Create an SQLAlchemy engine
 engine = create_engine('sqlite:///parliamentary_bill_tracker.db')
@@ -10,7 +12,10 @@ Session = sessionmaker(bind=engine)
 
 # Helper function for sorting bills by vote count
 def sort_bills_by_vote_count(bills):
-    return sorted(bills, key=lambda bill: len(bill.votes), reverse=True)
+    # Sort bills by the number of 'yes' votes in descending order
+    sorted_bills = sorted(bills, key=lambda bill: sum(1 for vote in bill.votes if vote.vote_status), reverse=True)
+    return sorted_bills
+
 
 # Helper function for searching MP by name
 def search_mp_by_name(name):
@@ -43,10 +48,11 @@ def add_bill(title, sponsor_id):
         new_bill = Bill(title=title, sponsor_id=sponsor_id)
         session.add(new_bill)
         session.commit()
-        session.close()
         click.echo(f"Added Bill: {title} (Sponsor: {mp.name})")
     else:
-        click.echo("MP not found.")
+        click.echo("MP(s) not found.")
+    
+    session.close()
 
 @cli.command()
 @click.option('--mp-id', prompt='MP ID', type=int, help='ID of the MP')
@@ -76,19 +82,29 @@ def search_mp(name):
     else:
         click.echo(f"No MPs found with name '{name}'.")
 
+
 @cli.command()
 @click.option('--sort-by-votes', is_flag=True, help='Sort bills by vote count')
 def list_bills(sort_by_votes):
     session = Session()
-    bills = session.query(Bill).all()
-    session.close()
+    query = session.query(Bill).options(joinedload(Bill.sponsor), joinedload(Bill.votes))
+
+    bills = query.all()
 
     if sort_by_votes:
         bills = sort_bills_by_vote_count(bills)
 
     click.echo("Bills:")
     for bill in bills:
-        click.echo(f"- ID: {bill.id}, Title: {bill.title}, Sponsor: {bill.sponsor.name}, Votes: {len(bill.votes)}")
+        sponsor_name = bill.sponsor.name if hasattr(bill.sponsor, 'name') else "No sponsor"  # Check for sponsor existence
+        vote_counts = Counter([vote.vote_status for vote in bill.votes])
+        yes_count = vote_counts[True] if True in vote_counts else 0
+        no_count = vote_counts[False] if False in vote_counts else 0
+
+        click.echo(f"- ID: {bill.id}, Title: {bill.title}, Sponsor: {sponsor_name}, Yes Votes: {yes_count}, No Votes:{no_count}")
+
+    session.close()
+
 
 if __name__ == '__main__':
     cli()
