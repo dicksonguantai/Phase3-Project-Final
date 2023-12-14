@@ -9,9 +9,15 @@ class MP(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    party_affiliation = Column(String)
+
     bills = relationship("Bill", back_populates="sponsor")
     votes = relationship("Vote", back_populates="mp")
 
+
+    def __repr__(self):
+        return f"<MP(id={self.id}, name={self.name}, party ={self.party_affiliation})>"
+    
 class Bill(Base):
     __tablename__ = 'bills'
 
