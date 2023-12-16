@@ -25,7 +25,7 @@ The **Parliamentary Bill Tracking System** is a command-line interface (CLI) app
 3. **Install dependencies:**
 
     ```bash
-    pip install -r requirements.txt
+    pipenv install
     ```
 
 ## Usage
